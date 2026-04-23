@@ -7,7 +7,10 @@
     "start": "node bot.js"
   },
   "dependencies": {
+    "node-fetch": "^2.7.0",
     "node-telegram-bot-api": "^0.66.0",
-    "node-fetch": "^2.7.0"
+    "puppeteer": "^24.42.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   }
 }

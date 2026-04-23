@@ -1,10 +1,43 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 
 // ─── Configuration ───────────────────────────────────────────────
 const BOT_TOKEN = '8432606941:AAGQFEVm-zHLnuTL2E1ftfbUEIrXY77UnYY';
 const GROUP_ID = '-1003912990983';
-const STOCK_API = 'https://growagardenstock.com/api/stock';
+const STOCK_API = 'https://www.gamersberg.com/api/v1/grow-a-garden/stock';
+const FALLBACK_API = 'https://growagardenstock.com/api/stock';
+const COOKIE_FILE = path.join(__dirname, 'cf_cookie.txt');
+
+// Load or set default cf_clearance
+let cfClearance = 'RqbfyFXOLiWh9EhSisftuTSRSjRbwRrwE3Bgj.6lDP8-1776957063-1.2.1.1-RNKUR0YPLCWJPfcfN2063huD6KZTzRAwVgkW.nV.3aw61_.U4augy3gSPajAXvAjPoefc6_xvcNMqcKVIhGLKc7D2u1PZSFFyRDWbhZYfMOsDJr1DTrazHrIdgViKezBxoK11xdeSscsiojUlLHMsSqgdruQzGjUv1tYF5YbM7tA8Qj1lvkM8uTIMQQqnvr8wAjiULkykP3CNdNDg8uSfGP5ydOHeM5iOLf7719CYfGCGrH84zA.iuol.RK1dsULh5axgeDSgcRquzau33ElZosIS5OwaT0qZcVG1cDGM8zpmriM_EaxgSlqhWkwgHkktBRdzPL56jFZtF4bncoGmw';
+
+// Try to load saved cookie
+try {
+  if (fs.existsSync(COOKIE_FILE)) {
+    cfClearance = fs.readFileSync(COOKIE_FILE, 'utf8').trim();
+    console.log('📂 Loaded cf_clearance from file');
+  }
+} catch (e) {}
+
+function getApiHeaders() {
+  return {
+    'accept': '*/*',
+    'accept-language': 'en-GB,en-US;q=0.9,en;q=0.8',
+    'cookie': `cf_clearance=${cfClearance}`,
+    'referer': 'https://www.gamersberg.com/grow-a-garden/stock',
+    'sec-ch-ua': '"Not/A)Brand";v="8", "Chromium";v="142", "Google Chrome";v="142"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'empty',
+    'sec-fetch-mode': 'cors',
+    'sec-fetch-site': 'same-origin',
+    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36',
+  };
+}
+
+let usingFallback = false;
 
 // ─── Rare items to track ────────────────────────────────────────
 const RARE_SEEDS = [
@@ -18,97 +51,33 @@ const RARE_GEAR = [
   'Grandmaster Sprinkler', 'Master Sprinkler'
 ];
 
-// ─── Discord emoji code → Unicode ────────────────────────────────
-const DISCORD_EMOJI_MAP = {
-  ':GaG_Corn:': '🌽', ':GaG_BlueBerry:': '🫐', ':GaG_Carrot:': '🥕',
-  ':GaG_Bamboo:': '🎋', ':Strawberry:': '🍓', ':Tomato:': '🍅',
-  ':Trowel:': '🔧', ':HarvestTool:': '🔨', ':trading_ticket:': '🎫',
-  ':RecallWrench:': '🔩', ':FavoriteTool:': '⭐', ':WateringCan:': '🚿',
-  ':CommonEgg:': '🥚', ':RareEgg:': '🥚', ':LegendaryEgg:': '🥚',
-  ':MythicalEgg:': '🥚',
-};
-
-// ─── Item name → emoji (fallback for items without discord codes) ─
+// ─── Item name → emoji ──────────────────────────────────────────
 const ITEM_EMOJI = {
-  // Seeds - Common
-  'corn': '🌽',
-  'carrot': '🥕',
-  'strawberry': '🍓',
-  'tomato': '🍅',
-  'blueberry': '🫐',
-  'bamboo': '🎋',
-  'broccoli': '🥦',
-  'buttercup': '🌼',
-  'cocomango': '🥭',
-  'watermelon': '🍉',
-  'pumpkin': '🎃',
-  'apple': '🍎',
-  'orange': '🍊',
-  'grape': '🍇',
-  'lemon': '🍋',
-  'pineapple': '🍍',
-  'cherry': '🍒',
-  'peach': '🍑',
-  'mushroom': '🍄',
-  'potato': '🥔',
-  'onion': '🧅',
-  'garlic': '🧄',
-  'lettuce': '🥬',
-  'cucumber': '🥒',
-  'avocado': '🥑',
-  'coconut': '🥥',
-  'mango': '🥭',
-  'banana': '🍌',
-  'melon': '🍈',
-  'pear': '🍐',
-  'kiwi': '🥝',
-
-  // Seeds - Rare
-  'beanstalk': '🌿',
-  'sunflower': '🌻',
-  'giant pinecone': '🌲',
-  'burning bud': '🔥',
-  'sugar apple': '🍏',
-  'ember lily': '🌺',
-  'elder strawberry': '🍓',
-  'eggsnapper': '🐊',
-  'octobloom': '🐙',
-  'alien apple': '👽',
-  'zebrazinkle': '🦓',
-  'pepper': '🌶️',
-
+  // Seeds
+  'corn': '🌽', 'carrot': '🥕', 'strawberry': '🍓', 'tomato': '🍅',
+  'blueberry': '🫐', 'bamboo': '🎋', 'broccoli': '🥦', 'buttercup': '🌼',
+  'cocomango': '🥭', 'watermelon': '🍉', 'pumpkin': '🎃', 'apple': '🍎',
+  'grape': '🍇', 'mushroom': '🍄', 'coconut': '🥥', 'mango': '🥭',
+  'daffodil': '🌻', 'cacao': '🍫', 'romanesco': '🥦', 'cactus': '🌵',
+  'dragon fruit': '🐉', 'crimson thorn': '🌹',
+  // Rare seeds
+  'beanstalk': '🌿', 'sunflower': '🌻', 'giant pinecone': '🌲',
+  'burning bud': '🔥', 'sugar apple': '🍏', 'ember lily': '🌺',
+  'elder strawberry': '🍓', 'eggsnapper': '🐊', 'octobloom': '🐙',
+  'alien apple': '👽', 'zebrazinkle': '🦓', 'pepper': '🌶️',
   // Gear
-  'trowel': '🔧',
-  'harvest tool': '🔨',
-  'trading ticket': '🎫',
-  'recall wrench': '🔩',
-  'favorite tool': '⭐',
-  'watering can': '🚿',
-  'pet lead': '🐾',
-  'pet name reroller': '🎲',
-  'godly sprinkler': '💎',
-  'advanced sprinkler': '🔷',
-  'grandmaster sprinkler': '👑',
-  'master sprinkler': '🏆',
-  'sprinkler': '💧',
-  'lightning rod': '⚡',
-  'speed boots': '👟',
-
+  'trowel': '🔧', 'harvest tool': '🔨', 'trading ticket': '🎫',
+  'recall wrench': '🔩', 'favorite tool': '⭐', 'watering can': '🚿',
+  'pet lead': '🐾', 'pet name reroller': '🎲', 'friendship pot': '🫂',
+  'cleaning spray': '🧹', 'magnifying glass': '🔍', 'medium treat': '🍖',
+  'basic sprinkler': '💧', 'medium toy': '🧸', 'levelup lollipop': '🍭',
+  'cleansing pet shard': '💎',
+  'godly sprinkler': '💎', 'advanced sprinkler': '🔷',
+  'grandmaster sprinkler': '👑', 'master sprinkler': '🏆',
   // Eggs
-  'common egg': '🥚',
-  'uncommon egg': '🥚',
-  'rare egg': '🥚',
-  'legendary egg': '🥚',
-  'mythical egg': '🥚',
-  'jungle egg': '🌴',
-  'ocean egg': '🌊',
-  'desert egg': '🏜️',
-  'arctic egg': '❄️',
-  'volcanic egg': '🌋',
-  'crystal egg': '💎',
-  'golden egg': '✨',
-  'shadow egg': '🌑',
-  'celestial egg': '🌟',
+  'common egg': '🥚', 'uncommon egg': '🥚', 'rare egg': '🥚',
+  'legendary egg': '🥚', 'mythical egg': '🥚', 'jungle egg': '🌴',
+  'bug egg': '🐛', 'ocean egg': '🌊',
 };
 
 const CATEGORIES = {
@@ -122,69 +91,18 @@ const CATEGORIES = {
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 let lastMessageId = null;
 let cachedStockData = null;
+let lastRareItems = new Set();
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
-function replaceDiscordEmojis(text) {
-  let result = text;
-  for (const [code, emoji] of Object.entries(DISCORD_EMOJI_MAP)) {
-    result = result.split(code).join(emoji);
-  }
-  // Remove any remaining unrecognized :emoji: codes
-  result = result.replace(/:[A-Za-z0-9_]+:/g, '');
-  return result.trim();
-}
-
 function getItemEmoji(name, category) {
   const lower = name.toLowerCase().trim();
-
-  // Check exact match first
   if (ITEM_EMOJI[lower]) return ITEM_EMOJI[lower];
-
-  // Check partial match
   for (const [key, emoji] of Object.entries(ITEM_EMOJI)) {
     if (lower.includes(key) || key.includes(lower)) return emoji;
   }
-
-  // Fallback by category
-  const fallbacks = {
-    seeds: '🌱',
-    gear: '🔧',
-    egg: '🥚',
-    event: '🎉',
-  };
+  const fallbacks = { seeds: '🌱', gear: '🔧', egg: '🥚', event: '🎉' };
   return fallbacks[category] || '📦';
-}
-
-function parseItem(raw, category) {
-  // Check if the raw string had a discord emoji code
-  const hadDiscordEmoji = /:[A-Za-z0-9_]+:/.test(raw);
-
-  const cleaned = replaceDiscordEmojis(raw);
-  const match = cleaned.match(/\*\*x(\d+)\*\*/);
-  const qty = match ? parseInt(match[1], 10) : 0;
-
-  // Remove qty
-  let name = cleaned.replace(/\*\*x\d+\*\*/, '').trim();
-
-  // Check if name already starts with an emoji (from discord code replacement)
-  const emojiRegex = /^[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}]/u;
-  const alreadyHasEmoji = emojiRegex.test(name);
-
-  let emoji = '';
-  if (alreadyHasEmoji) {
-    // Extract the existing emoji and clean name
-    const parts = name.match(/^([\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}]+)\s*(.*)/u);
-    if (parts) {
-      emoji = parts[1];
-      name = parts[2].trim();
-    }
-  } else {
-    // No emoji from API, assign one based on name
-    emoji = getItemEmoji(name, category);
-  }
-
-  return { name, qty, emoji };
 }
 
 function escapeHtml(text) {
@@ -216,6 +134,119 @@ function formatDate(date) {
   return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
 }
 
+// ─── Fetch stock from Gamersberg API ─────────────────────────────
+
+async function fetchStockData() {
+  // Try Gamersberg API first (accurate real-time data)
+  try {
+    const res = await fetch(STOCK_API, { headers: getApiHeaders() });
+    if (!res.ok) throw new Error(`Gamersberg API ${res.status}`);
+    const json = await res.json();
+    if (json.message === 'Unauthorized') throw new Error('cf_clearance expired');
+    if (!json.success || !json.data || !json.data[0]) throw new Error('Invalid response');
+    if (usingFallback) {
+      console.log(`[${new Date().toISOString()}] ✅ Gamersberg API restored!`);
+      usingFallback = false;
+    }
+    return json.data[0];
+  } catch (primaryErr) {
+    console.error(`[${new Date().toISOString()}] ⚠️ Gamersberg failed: ${primaryErr.message}`);
+    if (!usingFallback) {
+      usingFallback = true;
+      console.log(`[${new Date().toISOString()}] 🔄 Switching to fallback API`);
+      // Notify in group that cookie needs updating
+      try {
+        await bot.sendMessage(GROUP_ID,
+          `⚠️ <b>CF Clearance expired!</b>\n\nUsing fallback API (may be less accurate).\n\nTo fix: Send /setcookie YOUR_NEW_COOKIE to the bot in DM.`,
+          { parse_mode: 'HTML' }
+        );
+      } catch (e) {}
+    }
+
+    // Fallback to growagardenstock.com API
+    const res = await fetch(FALLBACK_API);
+    if (!res.ok) throw new Error(`Fallback API ${res.status}`);
+    const data = await res.json();
+
+    // Convert old format to new format
+    return convertOldFormat(data);
+  }
+}
+
+/**
+ * Convert the old growagardenstock.com format to the Gamersberg format
+ */
+function convertOldFormat(data) {
+  const result = { seeds: {}, gear: {}, eggs: [], event: {} };
+
+  // Parse seeds array: [":GaG_Corn: Corn **x4**", ...]
+  if (data.seeds) {
+    for (const raw of data.seeds) {
+      let cleaned = raw.replace(/:[A-Za-z0-9_]+:/g, '').trim();
+      const match = cleaned.match(/(.+?)\s*\*\*x(\d+)\*\*/);
+      if (match) {
+        result.seeds[match[1].trim()] = match[2];
+      }
+    }
+  }
+
+  // Parse gear array
+  if (data.gear) {
+    for (const raw of data.gear) {
+      let cleaned = raw.replace(/:[A-Za-z0-9_]+:/g, '').trim();
+      const match = cleaned.match(/(.+?)\s*\*\*x(\d+)\*\*/);
+      if (match) {
+        result.gear[match[1].trim()] = match[2];
+      }
+    }
+  }
+
+  // Parse egg array
+  if (data.egg) {
+    for (const raw of data.egg) {
+      let cleaned = raw.replace(/:[A-Za-z0-9_]+:/g, '').trim();
+      const match = cleaned.match(/(.+?)\s*\*\*x(\d+)\*\*/);
+      if (match) {
+        result.eggs.push({ name: match[1].trim(), quantity: parseInt(match[2], 10) });
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Parse object-style stock data { "Carrot": "14", "Corn": "0" }
+ * Returns array of { name, qty, emoji } with qty > 0
+ */
+function parseObjectStock(obj, category) {
+  if (!obj || typeof obj !== 'object') return [];
+  return Object.entries(obj)
+    .map(([name, qtyStr]) => ({
+      name,
+      qty: parseInt(qtyStr, 10) || 0,
+      emoji: getItemEmoji(name, category),
+    }))
+    .filter(i => i.qty > 0)
+    .sort((a, b) => b.qty - a.qty);
+}
+
+/**
+ * Parse array-style egg data [{ name: "Common Egg", quantity: 2 }]
+ * Returns array of { name, qty, emoji } with qty > 0
+ */
+function parseEggStock(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .map(e => ({
+      name: e.name,
+      qty: e.quantity || 0,
+      emoji: getItemEmoji(e.name, 'egg'),
+    }))
+    .filter(i => i.qty > 0)
+    .sort((a, b) => b.qty - a.qty);
+}
+
 // ─── Build the main message ──────────────────────────────────────
 
 function buildMainMessage(data) {
@@ -223,12 +254,12 @@ function buildMainMessage(data) {
   const timeStr = formatTime(now);
   const dateStr = formatDate(now);
 
-  const seedItems = (data.seeds || []).map(r => parseItem(r, 'seeds')).filter(i => i.qty > 0);
+  const seedItems = parseObjectStock(data.seeds, 'seeds');
   const rareSeeds = seedItems.filter(i => isRareItem(i.name, RARE_SEEDS));
-  const gearItems = (data.gear || []).map(r => parseItem(r, 'gear')).filter(i => i.qty > 0);
+  const gearItems = parseObjectStock(data.gear, 'gear');
   const rareGear = gearItems.filter(i => isRareItem(i.name, RARE_GEAR));
-  const eggItems = (data.egg || []).map(r => parseItem(r, 'egg')).filter(i => i.qty > 0);
-  const eventItems = (data.event || []).map(r => parseItem(r, 'event')).filter(i => i.qty > 0);
+  const eggItems = parseEggStock(data.eggs);
+  const eventItems = parseObjectStock(data.event, 'event');
 
   let msg = '';
 
@@ -291,6 +322,21 @@ function buildMainMessage(data) {
     msg += `\n`;
   }
 
+  // ── Weather ──
+  if (data.weather && data.weather.type) {
+    const weatherEmojis = {
+      'Thunderstorm': '⛈️', 'Rain': '🌧️', 'Sunny': '☀️',
+      'Cloudy': '☁️', 'Windy': '💨', 'Snow': '❄️',
+      'Heatwave': '🔥', 'Rainbow': '🌈',
+    };
+    const wEmoji = weatherEmojis[data.weather.type] || '🌤️';
+    msg += `${wEmoji} <b>Weather:</b> ${escapeHtml(data.weather.type)}`;
+    if (data.weather.duration) {
+      msg += ` (${Math.floor(data.weather.duration / 60)}m)`;
+    }
+    msg += `\n\n`;
+  }
+
   // ── Footer ──
   msg += `▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬\n`;
   msg += `🔄 <i>Auto-updates every 5 min</i>\n\n`;
@@ -316,16 +362,20 @@ function buildMainMessage(data) {
   return { message: msg, keyboard, hasRares, rareNames };
 }
 
-// ─── Category detail for callbacks ───────────────────────────────
+// ─── Category popup for callbacks ────────────────────────────────
 
 function buildCategoryPopup(categoryKey, data) {
   const config = CATEGORIES[categoryKey];
   if (!config) return null;
 
-  const items = (data[categoryKey] || [])
-    .map(r => parseItem(r, categoryKey))
-    .filter(i => i.qty > 0)
-    .sort((a, b) => b.qty - a.qty);
+  let items;
+  if (categoryKey === 'egg') {
+    items = parseEggStock(data.eggs);
+  } else if (categoryKey === 'event') {
+    items = parseObjectStock(data.event, 'event');
+  } else {
+    items = parseObjectStock(data[categoryKey], categoryKey);
+  }
 
   if (items.length === 0) {
     return `${config.emoji} ${config.title.toUpperCase()}\n━━━━━━━━━━━━━━\n❌ No items in stock`;
@@ -348,16 +398,11 @@ function buildCategoryPopup(categoryKey, data) {
 
 // ─── Main fetch & send ───────────────────────────────────────────
 
-// Track previously seen rare items to avoid spamming pings
-let lastRareItems = new Set();
-
 async function fetchAndSendStock() {
   try {
     console.log(`[${new Date().toISOString()}] Fetching stock...`);
 
-    const res = await fetch(STOCK_API);
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
+    const data = await fetchStockData();
     cachedStockData = data;
 
     const { message, keyboard, hasRares, rareNames } = buildMainMessage(data);
@@ -403,10 +448,8 @@ async function fetchAndSendStock() {
           `\n\n@everyone`;
 
         try {
-          const pingResult = await bot.sendMessage(GROUP_ID, pingMsg, {
-            parse_mode: 'HTML',
-          });
-          console.log(`[${new Date().toISOString()}] 🚨 Pinged for rare items: ${newRares.join(', ')}`);
+          await bot.sendMessage(GROUP_ID, pingMsg, { parse_mode: 'HTML' });
+          console.log(`[${new Date().toISOString()}] 🚨 Pinged for: ${newRares.join(', ')}`);
         } catch (e) {
           console.error(`[${new Date().toISOString()}] ❌ Ping failed: ${e.message}`);
         }
@@ -436,9 +479,8 @@ bot.on('callback_query', async (query) => {
     if (action.startsWith('cat_')) {
       const key = action.replace('cat_', '');
 
-      // Always fetch fresh data for popups
-      const res = await fetch(STOCK_API);
-      const data = await res.json();
+      // Always fetch fresh data
+      const data = await fetchStockData();
       cachedStockData = data;
 
       const detail = buildCategoryPopup(key, data);
@@ -461,6 +503,24 @@ bot.on('callback_query', async (query) => {
   }
 });
 
+// ─── /setcookie command to update cf_clearance ───────────────────
+
+bot.onText(/\/setcookie (.+)/, async (msg, match) => {
+  const newCookie = match[1].trim();
+  cfClearance = newCookie;
+
+  // Save to file for persistence
+  try {
+    fs.writeFileSync(COOKIE_FILE, newCookie);
+  } catch (e) {}
+
+  usingFallback = false;
+  console.log(`[${new Date().toISOString()}] 🍪 Cookie updated by user ${msg.from.id}`);
+
+  await bot.sendMessage(msg.chat.id, '✅ CF Clearance cookie updated! Fetching fresh data...');
+  await fetchAndSendStock();
+});
+
 bot.on('polling_error', (err) => {
   if (!err.message.includes('409')) console.error(`Polling: ${err.message}`);
 });
@@ -480,7 +540,7 @@ function scheduleAligned() {
 }
 
 // ─── Start ───────────────────────────────────────────────────────
-console.log('🌿 Grow A Garden Stock Bot');
+console.log('🌿 Grow A Garden Stock Bot (Gamersberg API)');
 console.log(`   Group: ${GROUP_ID}`);
 fetchAndSendStock();
 scheduleAligned();
