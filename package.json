@@ -1,0 +1,13 @@
+{
+  "name": "grow-a-garden-sender",
+  "version": "1.0.0",
+  "description": "Telegram bot that sends Grow A Garden stock updates every 5 minutes",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "^0.66.0",
+    "node-fetch": "^2.7.0"
+  }
+}
