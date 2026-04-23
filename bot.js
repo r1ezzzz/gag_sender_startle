@@ -526,14 +526,16 @@ bot.on('polling_error', (err) => {
   if (!err.message.includes('409')) console.error(`Polling: ${err.message}`);
 });
 
-// ─── Schedule aligned to 5-min marks ─────────────────────────────
+// ─── Schedule aligned to 5-min marks + 10s delay ─────────────────
+
+const FETCH_DELAY = 10 * 1000; // 10 seconds after each 5-min mark
 
 function scheduleAligned() {
   const now = Date.now();
   const fiveMin = 5 * 60 * 1000;
-  const next = Math.ceil(now / fiveMin) * fiveMin;
+  const next = Math.ceil(now / fiveMin) * fiveMin + FETCH_DELAY;
   const delay = next - now;
-  console.log(`⏰ Next update in ${Math.round(delay / 1000)}s`);
+  console.log(`⏰ Next update in ${Math.round(delay / 1000)}s (10s after 5-min mark)`);
   setTimeout(() => {
     fetchAndSendStock();
     setInterval(fetchAndSendStock, fiveMin);
