@@ -425,6 +425,15 @@ async function fetchAndSendStock() {
     }
 
     if (!sent) {
+      // Delete the old message before sending a new one
+      if (lastMessageId) {
+        try {
+          await bot.deleteMessage(GROUP_ID, lastMessageId);
+          console.log(`[${new Date().toISOString()}] 🗑️ Deleted old #${lastMessageId}`);
+        } catch (e) {
+          console.log(`[${new Date().toISOString()}] ⚠️ Delete failed: ${e.message}`);
+        }
+      }
       try {
         const result = await bot.sendMessage(GROUP_ID, message, {
           parse_mode: 'HTML',
