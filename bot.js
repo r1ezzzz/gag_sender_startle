@@ -4,14 +4,15 @@ const fs = require('fs');
 const path = require('path');
 
 // ─── Configuration ───────────────────────────────────────────────
-const BOT_TOKEN = '8432606941:AAGQFEVm-zHLnuTL2E1ftfbUEIrXY77UnYY';
-const GROUP_ID = '-1003912990983';
+const BOT_TOKEN = process.env.BOT_TOKEN || '8432606941:AAGQFEVm-zHLnuTL2E1ftfbUEIrXY77UnYY';
+const GROUP_ID = process.env.GROUP_ID || '-1003912990983';
 const STOCK_API = 'https://www.gamersberg.com/api/v1/grow-a-garden/stock';
 const FALLBACK_API = 'https://growagardenstock.com/api/stock';
 const COOKIE_FILE = path.join(__dirname, 'cf_cookie.txt');
 
 // Load or set default cf_clearance
-let cfClearance = 'RqbfyFXOLiWh9EhSisftuTSRSjRbwRrwE3Bgj.6lDP8-1776957063-1.2.1.1-RNKUR0YPLCWJPfcfN2063huD6KZTzRAwVgkW.nV.3aw61_.U4augy3gSPajAXvAjPoefc6_xvcNMqcKVIhGLKc7D2u1PZSFFyRDWbhZYfMOsDJr1DTrazHrIdgViKezBxoK11xdeSscsiojUlLHMsSqgdruQzGjUv1tYF5YbM7tA8Qj1lvkM8uTIMQQqnvr8wAjiULkykP3CNdNDg8uSfGP5ydOHeM5iOLf7719CYfGCGrH84zA.iuol.RK1dsULh5axgeDSgcRquzau33ElZosIS5OwaT0qZcVG1cDGM8zpmriM_EaxgSlqhWkwgHkktBRdzPL56jFZtF4bncoGmw';
+const DEFAULT_CF = 'RqbfyFXOLiWh9EhSisftuTSRSjRbwRrwE3Bgj.6lDP8-1776957063-1.2.1.1-RNKUR0YPLCWJPfcfN2063huD6KZTzRAwVgkW.nV.3aw61_.U4augy3gSPajAXvAjPoefc6_xvcNMqcKVIhGLKc7D2u1PZSFFyRDWbhZYfMOsDJr1DTrazHrIdgViKezBxoK11xdeSscsiojUlLHMsSqgdruQzGjUv1tYF5YbM7tA8Qj1lvkM8uTIMQQqnvr8wAjiULkykP3CNdNDg8uSfGP5ydOHeM5iOLf7719CYfGCGrH84zA.iuol.RK1dsULh5axgeDSgcRquzau33ElZosIS5OwaT0qZcVG1cDGM8zpmriM_EaxgSlqhWkwgHkktBRdzPL56jFZtF4bncoGmw';
+let cfClearance = process.env.CF_CLEARANCE || DEFAULT_CF;
 
 // Try to load saved cookie
 try {
