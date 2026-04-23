@@ -544,7 +544,7 @@ bot.on('polling_error', (err) => {
 
 // ─── Schedule aligned to 5-min marks + 10s delay ─────────────────
 
-const FETCH_DELAY = 10 * 1000; // 10 seconds after each 5-min mark
+const FETCH_DELAY = 30 * 1000; // 30 seconds after each 5-min mark
 
 function scheduleAligned() {
   const now = Date.now();
