@@ -91,8 +91,8 @@ const CATEGORIES = {
 // ─── Bot init ────────────────────────────────────────────────────
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 let lastMessageId = null;
+let lastPingMessageId = null;
 let cachedStockData = null;
-let lastRareItems = new Set();
 
 // ─── Helpers ─────────────────────────────────────────────────────
 
@@ -446,28 +446,35 @@ async function fetchAndSendStock() {
       }
     }
 
-    // Ping everyone if NEW rare items appeared
+    // Ping everyone EVERY TIME rare items are in stock
     if (hasRares) {
-      const currentRares = new Set(rareNames);
-      const newRares = rareNames.filter(r => !lastRareItems.has(r));
-
-      if (newRares.length > 0) {
-        const pingMsg =
-          `🚨🚨🚨 <b>RARE ITEM ALERT!</b> 🚨🚨🚨\n\n` +
-          newRares.map(r => `⭐ ${r}`).join('\n') +
-          `\n\n@everyone`;
-
+      // Delete previous ping message to avoid spam
+      if (lastPingMessageId) {
         try {
-          await bot.sendMessage(GROUP_ID, pingMsg, { parse_mode: 'HTML' });
-          console.log(`[${new Date().toISOString()}] 🚨 Pinged for: ${newRares.join(', ')}`);
-        } catch (e) {
-          console.error(`[${new Date().toISOString()}] ❌ Ping failed: ${e.message}`);
-        }
+          await bot.deleteMessage(GROUP_ID, lastPingMessageId);
+        } catch (e) {}
       }
 
-      lastRareItems = currentRares;
+      const pingMsg =
+        `🚨🚨🚨 <b>RARE ITEM ALERT!</b> 🚨🚨🚨\n\n` +
+        rareNames.map(r => `⭐ ${r}`).join('\n') +
+        `\n\n@everyone`;
+
+      try {
+        const pingResult = await bot.sendMessage(GROUP_ID, pingMsg, { parse_mode: 'HTML' });
+        lastPingMessageId = pingResult.message_id;
+        console.log(`[${new Date().toISOString()}] 🚨 Pinged for: ${rareNames.join(', ')}`);
+      } catch (e) {
+        console.error(`[${new Date().toISOString()}] ❌ Ping failed: ${e.message}`);
+      }
     } else {
-      lastRareItems = new Set();
+      // No rares — delete old ping if exists
+      if (lastPingMessageId) {
+        try {
+          await bot.deleteMessage(GROUP_ID, lastPingMessageId);
+        } catch (e) {}
+        lastPingMessageId = null;
+      }
     }
   } catch (err) {
     console.error(`[${new Date().toISOString()}] ❌ ${err.message}`);
