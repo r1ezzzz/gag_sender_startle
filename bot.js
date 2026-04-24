@@ -458,7 +458,7 @@ async function fetchAndSendStock() {
       const pingMsg =
         `🚨🚨🚨 <b>RARE ITEM ALERT!</b> 🚨🚨🚨\n\n` +
         rareNames.map(r => `⭐ ${r}`).join('\n') +
-        `\n\n@everyone`;
+        `\n\n@scholar_solutions @reizqtyy`;
 
       try {
         const pingResult = await bot.sendMessage(GROUP_ID, pingMsg, { parse_mode: 'HTML' });
